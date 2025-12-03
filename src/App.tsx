@@ -57,7 +57,7 @@ export default function App() {
 
   return (
     <div style={styles.container}>
-      <h1 style={styles.title}>🤖 Strands Agent</h1>
+      <h1 style={styles.title}>Strands TypeScriptエージェント</h1>
 
       <div style={styles.chatBox}>
         {messages.length === 0 && (
