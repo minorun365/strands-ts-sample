@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import Markdown from 'react-markdown'
 
 interface Message {
@@ -10,6 +10,14 @@ export default function App() {
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState('')
   const [isLoading, setIsLoading] = useState(false)
+  const chatBoxRef = useRef<HTMLDivElement>(null)
+
+  // 自動スクロール
+  useEffect(() => {
+    if (chatBoxRef.current) {
+      chatBoxRef.current.scrollTop = chatBoxRef.current.scrollHeight
+    }
+  }, [messages])
 
   const sendMessage = async () => {
     if (!input.trim() || isLoading) return
@@ -19,31 +27,80 @@ export default function App() {
     setMessages((prev) => [...prev, { role: 'user', content: userMessage }])
     setIsLoading(true)
 
+    // AIメッセージを空で追加（ストリーミング用）
+    setMessages((prev) => [...prev, { role: 'assistant', content: '' }])
+
     try {
       const res = await fetch('/api/agent', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: userMessage }),
+        body: JSON.stringify({ message: userMessage, stream: true }),
       })
 
-      const data = await res.json()
+      if (!res.ok) {
+        const data = await res.json()
+        setMessages((prev) => {
+          const updated = [...prev]
+          updated[updated.length - 1] = { role: 'assistant', content: `エラー: ${data.error}` }
+          return updated
+        })
+        return
+      }
 
-      if (res.ok) {
-        const content = Array.isArray(data.response)
-          ? data.response.map((block: { text?: string }) => block.text || '').join('')
-          : data.response || 'エラーが発生しました'
-        setMessages((prev) => [...prev, { role: 'assistant', content }])
-      } else {
-        setMessages((prev) => [
-          ...prev,
-          { role: 'assistant', content: `エラー: ${data.error}` },
-        ])
+      const reader = res.body?.getReader()
+      const decoder = new TextDecoder()
+
+      if (!reader) throw new Error('No reader')
+
+      let buffer = ''
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+
+        buffer += decoder.decode(value, { stream: true })
+
+        // SSEはダブル改行で区切られる
+        const parts = buffer.split('\n\n')
+        buffer = parts.pop() || ''
+
+        for (const part of parts) {
+          const line = part.trim()
+          if (line.startsWith('data: ')) {
+            const data = line.slice(6)
+            if (data === '[DONE]') continue
+
+            try {
+              const parsed = JSON.parse(data)
+              if (parsed.text) {
+                setMessages((prev) => {
+                  const lastMsg = prev[prev.length - 1]
+                  if (lastMsg?.role === 'assistant') {
+                    return [
+                      ...prev.slice(0, -1),
+                      { ...lastMsg, content: lastMsg.content + parsed.text }
+                    ]
+                  }
+                  return prev
+                })
+              }
+              if (parsed.error) {
+                setMessages((prev) => [
+                  ...prev.slice(0, -1),
+                  { role: 'assistant', content: `エラー: ${parsed.error}` }
+                ])
+              }
+            } catch {
+              // JSON parse error, skip
+            }
+          }
+        }
       }
     } catch {
-      setMessages((prev) => [
-        ...prev,
-        { role: 'assistant', content: '通信エラーが発生しました' },
-      ])
+      setMessages((prev) => {
+        const updated = [...prev]
+        updated[updated.length - 1] = { role: 'assistant', content: '通信エラーが発生しました' }
+        return updated
+      })
     } finally {
       setIsLoading(false)
     }
@@ -61,7 +118,7 @@ export default function App() {
     <div style={styles.container}>
       <h1 style={styles.title}>Strands TypeScriptエージェント</h1>
 
-      <div style={styles.chatBox}>
+      <div ref={chatBoxRef} style={styles.chatBox}>
         {messages.length === 0 && (
           <p style={styles.placeholder}>メッセージを入力して会話を始めましょう</p>
         )}
@@ -76,19 +133,13 @@ export default function App() {
             <strong>{msg.role === 'user' ? 'あなた' : 'AI'}:</strong>
             <div className="message-text" style={styles.messageText}>
               {msg.role === 'assistant' ? (
-                <Markdown>{msg.content}</Markdown>
+                msg.content ? <Markdown>{msg.content}</Markdown> : <span style={styles.cursor}>▌</span>
               ) : (
                 msg.content
               )}
             </div>
           </div>
         ))}
-        {isLoading && (
-          <div style={{ ...styles.message, ...styles.assistantMessage }}>
-            <strong>AI:</strong>
-            <p style={styles.messageText}>考え中...</p>
-          </div>
-        )}
       </div>
 
       <div style={styles.inputArea}>
@@ -154,6 +205,10 @@ const styles: Record<string, React.CSSProperties> = {
     marginTop: '4px',
     lineHeight: '1.5',
     whiteSpace: 'pre-wrap',
+  },
+  cursor: {
+    animation: 'blink 1s infinite',
+    color: '#666',
   },
   inputArea: {
     display: 'flex',

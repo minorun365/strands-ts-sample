@@ -40,7 +40,7 @@ const tavilySearchTool = tool({
 // Bedrock モデルを設定
 const model = new BedrockModel({
   region: 'us-east-1',
-  modelId: 'us.anthropic.claude-sonnet-4-5-20250929-v1:0',
+  modelId: 'us.anthropic.claude-haiku-4-5-20251001-v1:0',
 })
 
 // エージェントを作成
@@ -55,13 +55,37 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(405).json({ error: 'Method not allowed' })
   }
 
-  try {
-    const { message } = req.body
+  const { message, stream } = req.body
 
-    if (!message || typeof message !== 'string') {
-      return res.status(400).json({ error: 'message is required' })
+  if (!message || typeof message !== 'string') {
+    return res.status(400).json({ error: 'message is required' })
+  }
+
+  // ストリーミングモード
+  if (stream) {
+    res.setHeader('Content-Type', 'text/event-stream')
+    res.setHeader('Cache-Control', 'no-cache')
+    res.setHeader('Connection', 'keep-alive')
+
+    try {
+      for await (const event of agent.stream(message)) {
+        // テキストデルタのみをクライアントに送信
+        if (event.type === 'modelContentBlockDeltaEvent' && event.delta.type === 'textDelta') {
+          res.write(`data: ${JSON.stringify({ text: event.delta.text })}\n\n`)
+        }
+      }
+      res.write(`data: [DONE]\n\n`)
+      res.end()
+    } catch (error) {
+      console.error('Stream error:', error)
+      res.write(`data: ${JSON.stringify({ error: 'ストリームエラー' })}\n\n`)
+      res.end()
     }
+    return
+  }
 
+  // 通常モード（後方互換性のため維持）
+  try {
     const result = await agent.invoke(message)
 
     return res.status(200).json({
