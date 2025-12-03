@@ -2,7 +2,7 @@ import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { Agent, tool } from '@strands-agents/sdk'
 import { BedrockModel } from '@strands-agents/sdk'
 import { tavily } from '@tavily/core'
-import { z } from 'zod'
+import { z } from 'zod/v4'
 
 // 入力スキーマを定義
 const searchInputSchema = z.object({
