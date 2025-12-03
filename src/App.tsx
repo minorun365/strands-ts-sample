@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import Markdown from 'react-markdown'
 
 interface Message {
   role: 'user' | 'assistant'
@@ -73,7 +74,13 @@ export default function App() {
             }}
           >
             <strong>{msg.role === 'user' ? 'あなた' : 'AI'}:</strong>
-            <p style={styles.messageText}>{msg.content}</p>
+            <div className="message-text" style={styles.messageText}>
+              {msg.role === 'assistant' ? (
+                <Markdown>{msg.content}</Markdown>
+              ) : (
+                msg.content
+              )}
+            </div>
           </div>
         ))}
         {isLoading && (
