@@ -133,7 +133,26 @@ export default function App() {
             <strong>{msg.role === 'user' ? 'あなた' : 'AI'}:</strong>
             <div className="message-text" style={styles.messageText}>
               {msg.role === 'assistant' ? (
-                msg.content ? <Markdown>{msg.content}</Markdown> : <span style={styles.cursor}>▌</span>
+                msg.content ? (
+                  <Markdown
+                    allowedElements={[
+                      'p', 'br', 'strong', 'em', 'code', 'pre',
+                      'ul', 'ol', 'li', 'blockquote',
+                      'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
+                      'a', 'hr'
+                    ]}
+                    urlTransform={(url) => {
+                      // javascript: や data: スキームをブロック（react2shell対策）
+                      const sanitizedUrl = url.trim().toLowerCase()
+                      if (sanitizedUrl.startsWith('javascript:') || sanitizedUrl.startsWith('data:') || sanitizedUrl.startsWith('vbscript:')) {
+                        return ''
+                      }
+                      return url
+                    }}
+                  >
+                    {msg.content}
+                  </Markdown>
+                ) : <span style={styles.cursor}>▌</span>
               ) : (
                 msg.content
               )}
