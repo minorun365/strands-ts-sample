@@ -12,3 +12,7 @@ npx vercel dev
 ```
 
 npm run dev では画面しか立ち上がらず、エージェントの関数は動きません。手元で試すときは vercel dev を使います。
+
+## ライセンス
+
+MIT Licenseです。詳細は [LICENSE](./LICENSE) を参照してください。
