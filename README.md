@@ -13,6 +13,14 @@ npx vercel dev
 
 npm run dev では画面しか立ち上がらず、エージェントの関数は動きません。手元で試すときは vercel dev を使います。
 
+## 公開するときの注意
+
+Vercelへデプロイした本番のURLは、そのままでは誰でも開けます。URLを知った人が、みなさんのAWSとTavilyの料金でエージェントを動かせてしまうため、次の対応をおすすめします。
+
+- Vercelのプロジェクトの「Settings」→「Deployment Protection」で「Vercel Authentication」を有効にし、範囲を「All Deployments」にする（既定の「Standard Protection」は本番のドメインを保護しません）
+- 環境変数に入れるIAMユーザーの権限は、Bedrockのモデル呼び出しだけに絞る（`bedrock:InvokeModel` と `bedrock:InvokeModelWithResponseStream`）
+- 試し終えたら、プロジェクトを削除し、アクセスキーを無効化・削除する
+
 ## ライセンス
 
 MIT Licenseです。詳細は [LICENSE](./LICENSE) を参照してください。
